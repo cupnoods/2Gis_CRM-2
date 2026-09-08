@@ -1,0 +1,27 @@
+{
+  "fileKey": "aUmnuKbSqWgmVqVRiwgl8O",
+  "catalog": "2:2",
+  "company": "2:3",
+  "pipeline": "2:4",
+  "mobileCatalog": "2:5",
+  "mobileCompany": "2:6",
+  "components": "2:7",
+  "sidebar": "3:20",
+  "status": "blocked_by_figma_starter_mcp_quota",
+  "completed": [
+    "native catalogue",
+    "native sidebar component",
+    "native business-row component",
+    "native colors",
+    "5 SVG screen concepts",
+    "preview"
+  ],
+  "partial": [
+    "native company"
+  ],
+  "empty": [
+    "native pipeline",
+    "native mobile catalogue",
+    "native mobile company"
+  ]
+}

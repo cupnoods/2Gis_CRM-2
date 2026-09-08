@@ -1,0 +1,2 @@
+import { LoadingSkeleton } from "@/components/ui";
+export default function Loading() { return <div className="space-y-5"><LoadingSkeleton className="h-8 w-56" /><LoadingSkeleton className="h-4 w-96 max-w-full" /><div className="grid gap-4 md:grid-cols-3"><LoadingSkeleton className="h-28" /><LoadingSkeleton className="h-28" /><LoadingSkeleton className="h-28" /></div><LoadingSkeleton className="h-[420px]" /></div>; }
