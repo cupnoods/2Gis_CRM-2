@@ -77,10 +77,16 @@ ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
--- Allow public/authenticated read and write policies
+-- Drop existing policies if present before recreating
+DROP POLICY IF EXISTS "Allow all access to profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow all access to statuses" ON public.statuses;
+DROP POLICY IF EXISTS "Allow all access to companies" ON public.companies;
+DROP POLICY IF EXISTS "Allow all access to notes" ON public.notes;
+DROP POLICY IF EXISTS "Allow all access to tasks" ON public.tasks;
+
+-- Create public/authenticated read and write policies
 CREATE POLICY "Allow all access to profiles" ON public.profiles FOR ALL USING (true);
 CREATE POLICY "Allow all access to statuses" ON public.statuses FOR ALL USING (true);
 CREATE POLICY "Allow all access to companies" ON public.companies FOR ALL USING (true);
 CREATE POLICY "Allow all access to notes" ON public.notes FOR ALL USING (true);
 CREATE POLICY "Allow all access to tasks" ON public.tasks FOR ALL USING (true);
-
