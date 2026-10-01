@@ -1,6 +1,65 @@
 "use client";
-import { MapPin, Search, SlidersHorizontal } from "lucide-react";
-import { Button, CompanyCard, EmptyState, PageHeader, Segmented } from "@/components/ui";
+
+import dynamic from "next/dynamic";
+import { Search, SlidersHorizontal } from "lucide-react";
+import { Button, CompanyCard, PageHeader } from "@/components/ui";
 import { useApp } from "@/components/app-shell";
 import { useRouter } from "next/navigation";
-export default function MapPage() { const { companies } = useApp(); const router = useRouter(); return <div><PageHeader eyebrow="Directory view" title="Map" description="Explore companies by district. Map tiles are represented with a lightweight prototype canvas until 2GIS MapGL is connected." actions={<><Button variant="secondary"><SlidersHorizontal size={16} />Filters</Button><Button variant="primary">Open catalogue</Button></>} /><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"><section className="relative min-h-[620px] overflow-hidden rounded-xl border border-[#e4e7ec] bg-[#e9eef2]"><div className="absolute inset-0 opacity-55" style={{ backgroundImage: "linear-gradient(28deg, transparent 45%, #fff 46%, #fff 48%, transparent 49%), linear-gradient(112deg, transparent 46%, #fff 47%, #fff 49%, transparent 50%), linear-gradient(#d8e1e6 1px, transparent 1px), linear-gradient(90deg, #d8e1e6 1px, transparent 1px)", backgroundSize: "300px 190px, 240px 260px, 40px 40px, 40px 40px" }} /><div className="absolute left-5 top-5 flex items-center gap-2 rounded-lg border border-[#e4e7ec] bg-white p-2 shadow-sm"><Search size={16} className="text-[#98a2b3]" /><input aria-label="Search map" placeholder="Search the map…" className="w-44 bg-transparent text-sm outline-none" /></div>{companies.slice(0, 14).map((company, index) => <button key={company.id} onClick={() => router.push(`/companies/${company.id}`)} className="absolute flex size-9 items-center justify-center rounded-full border-2 border-white bg-indigo-600 text-white shadow-md transition hover:scale-110" style={{ left: `${12 + (index * 17) % 74}%`, top: `${21 + (index * 23) % 64}%` }} title={company.name}><MapPin size={17} fill="currentColor" /></button>)}<div className="absolute bottom-5 left-5 rounded-lg bg-white/90 px-3 py-2 text-xs text-[#667085] backdrop-blur">Osh city · {companies.length} demo pins</div></section><div className="space-y-3"><div className="text-sm font-semibold text-[#344054]">Nearby businesses</div>{companies.slice(0, 4).map((company) => <CompanyCard key={company.id} company={company} onOpen={() => router.push(`/companies/${company.id}`)} />)}</div></div></div>; }
+
+// Dynamically import map to avoid SSR window/DOM errors with 2GIS JS SDK
+const GisMap = dynamic(() => import("@/components/gis-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[600px] items-center justify-center rounded-xl border border-[#e4e7ec] bg-[#f8f9fb]">
+      <div className="flex flex-col items-center gap-2 text-sm text-[#667085]">
+        <div className="size-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+        <span>Loading 2GIS MapGL Engine…</span>
+      </div>
+    </div>
+  ),
+});
+
+export default function MapPage() {
+  const { companies } = useApp();
+  const router = useRouter();
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Directory view"
+        title="Map"
+        description="Explore companies by district using 2GIS MapGL vector maps and interactive markers."
+        actions={
+          <>
+            <Button variant="secondary">
+              <SlidersHorizontal size={16} /> Filter Map
+            </Button>
+            <Button variant="primary" onClick={() => router.push("/catalogue")}>
+              Open catalogue
+            </Button>
+          </>
+        }
+      />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="relative min-h-[620px]">
+          <GisMap
+            companies={companies}
+            onSelectCompany={(id) => router.push(`/companies/${id}`)}
+          />
+        </section>
+        <div className="space-y-3">
+          <div className="text-sm font-semibold text-[#344054]">
+            Nearby businesses ({companies.length})
+          </div>
+          {companies.slice(0, 5).map((company) => (
+            <CompanyCard
+              key={company.id}
+              company={company}
+              onOpen={() => router.push(`/companies/${company.id}`)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -10,32 +10,35 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "@tanstack/react-table": "^8.21.3",
+    "@2gis/mapgl": "^1.78.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "recharts": "^3.0.0",
-    "zustand": "^5.0.0",
-    "lucide-react": "latest",
-    "radix-ui": "latest",
+    "@fontsource-variable/inter": "latest",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "lucide-react": "latest",
+    "next": "latest",
+    "radix-ui": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "recharts": "^3.0.0",
     "tailwind-merge": "^3.0.0",
-    "@fontsource-variable/inter": "latest"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@playwright/test": "latest",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "tailwindcss": "^4",
-    "@tailwindcss/postcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "latest",
-    "@playwright/test": "latest"
+    "tailwindcss": "^4",
+    "typescript": "^5"
   },
   "packageManager": "pnpm@12.3.4+sha512.961aa41fb077da3a04a441d9f8e15ebc0c96da8ef710b2eb67bf9ee7cb0610eabd48f1fd85f51cffe73846785fa0f87c56a3a872a1d893f8446741b5cce45457"
 }
