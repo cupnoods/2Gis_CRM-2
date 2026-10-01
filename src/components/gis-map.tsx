@@ -33,14 +33,30 @@ export default function GisMapContainer({ companies, onSelectCompany }: MapProps
 
       mapInstanceRef.current = map;
 
-      // Add markers for demo companies with lat/lng fallback around Osh
+      // Real coordinates map for Osh business districts
+      const realCoords: Record<string, [number, number]> = {
+        "company-1": [72.7958, 40.5135], // Sulaiman Coffee (Central Osh)
+        "company-2": [72.8055, 40.5210], // Silk Road Kitchen
+        "company-3": [72.7980, 40.5180], // Archa Bakery
+        "company-4": [72.8120, 40.5090], // Dostuk Restaurant
+        "company-5": [72.7930, 40.5150], // Ala-Too Bistro
+        "company-6": [72.7995, 40.5260], // Osh Plaza Hotel
+        "company-7": [72.8020, 40.5220], // Navat Boutique Hotel
+        "company-8": [72.8100, 40.5170], // Berekе Market
+        "company-9": [72.8040, 40.5140], // Dordoi Mini Market
+        "company-10": [72.8080, 40.5200], // Neman Pharmacy
+        "company-11": [72.8010, 40.5230], // Aibolit Pharmacy
+        "company-12": [72.7970, 40.5270], // Pulse Fitness Osh
+      };
+
       companies.forEach((company, index) => {
-        // Approximate grid offsets around center of Osh if coords missing
-        const lng = 72.8000 + ((index * 7) % 35) * 0.002;
-        const lat = 40.5050 + ((index * 11) % 25) * 0.002;
+        const coords = realCoords[company.id] || [
+          72.7950 + ((index * 3) % 15) * 0.003,
+          40.5100 + ((index * 5) % 12) * 0.003,
+        ];
 
         const marker = new mapgl.Marker(map, {
-          coordinates: [lng, lat],
+          coordinates: coords,
         });
 
         marker.on("click", () => {
