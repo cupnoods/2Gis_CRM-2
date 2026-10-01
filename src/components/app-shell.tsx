@@ -17,7 +17,62 @@ const nav = [
 ] as const;
 
 function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) { return <span className={cn("inline-flex shrink-0 items-center justify-center rounded-full bg-indigo-100 font-semibold text-indigo-700", size === "md" ? "size-9 text-xs" : "size-7 text-[10px]")}>{initials(name)}</span>; }
-function Sidebar({ open, setOpen }: { open: boolean; setOpen: (value: boolean) => void }) { const pathname = usePathname(); const { language } = useApp(); const t = copy[language]; return <><aside className={cn("fixed inset-y-0 left-0 z-40 flex w-[252px] flex-col border-r border-[#e4e7ec] bg-white transition-transform lg:static lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}><div className="flex h-16 items-center gap-3 border-b border-[#f0f1f3] px-5"><div className="flex size-9 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">O</div><div><div className="font-semibold tracking-tight">OshBiz CRM</div><div className="text-[11px] text-[#98a2b3]">Osh, Kyrgyzstan</div></div><button className="ml-auto rounded-lg p-2 text-[#667085] hover:bg-[#f6f7f9] lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation"><X size={18} /></button></div><div className="flex-1 overflow-y-auto px-3 py-5"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#98a2b3]">Workspace</p>{nav.map(({ href, key, icon: Icon }) => { const active = pathname.startsWith(href); return <Link key={href} href={href} onClick={() => setOpen(false)} className={cn("mb-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors", active ? "bg-indigo-50 font-semibold text-indigo-700" : "text-[#667085] hover:bg-[#f6f7f9] hover:text-[#344054]")}><Icon size={18} strokeWidth={active ? 2.2 : 1.8} />{t[key]}</Link>; })}</div><div className="m-3 rounded-xl bg-[#f8f9fb] p-3"><div className="flex items-center gap-2"><Avatar name="Alex Will" /><div><div className="text-xs font-semibold">Alex Will</div><div className="text-[11px] text-[#98a2b3]">Owner</div></div><ChevronDown size={14} className="ml-auto text-[#98a2b3]" /></div></div></aside>{open && <button className="fixed inset-0 z-30 bg-[#101828]/20 lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />}</>; }
+function Sidebar({ open, setOpen }: { open: boolean; setOpen: (value: boolean) => void }) {
+  const pathname = usePathname();
+  const { language } = useApp();
+  const t = copy[language];
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("oshbiz_user");
+      if (saved) {
+        try { setUser(JSON.parse(saved)); } catch (e) {}
+      }
+    }
+  }, []);
+
+  const displayName = user?.name || "Alex Will";
+
+  return (
+    <>
+      <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-[252px] flex-col border-r border-[#e4e7ec] bg-white transition-transform lg:static lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
+        <div className="flex h-16 items-center gap-3 border-b border-[#f0f1f3] px-5">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">O</div>
+          <div>
+            <div className="font-semibold tracking-tight">OshBiz CRM</div>
+            <div className="text-[11px] text-[#98a2b3]">Osh, Kyrgyzstan</div>
+          </div>
+          <button className="ml-auto rounded-lg p-2 text-[#667085] hover:bg-[#f6f7f9] lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-5">
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#98a2b3]">Workspace</p>
+          {nav.map(({ href, key, icon: Icon }) => {
+            const active = pathname.startsWith(href);
+            return (
+              <Link key={href} href={href} onClick={() => setOpen(false)} className={cn("mb-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors", active ? "bg-indigo-50 font-semibold text-indigo-700" : "text-[#667085] hover:bg-[#f6f7f9] hover:text-[#344054]")}>
+                <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />{t[key]}
+              </Link>
+            );
+          })}
+        </div>
+        <div className="m-3 rounded-xl bg-[#f8f9fb] p-3">
+          <div className="flex items-center gap-2">
+            <Avatar name={displayName} />
+            <div>
+              <div className="text-xs font-semibold">{displayName}</div>
+              <div className="text-[11px] text-[#98a2b3]">{user?.email || "owner@oshbiz.kg"}</div>
+            </div>
+            <ChevronDown size={14} className="ml-auto text-[#98a2b3]" />
+          </div>
+        </div>
+      </aside>
+      {open && <button className="fixed inset-0 z-30 bg-[#101828]/20 lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />}
+    </>
+  );
+}
 function Topbar({ onMenu }: { onMenu: () => void }) {
   const { language, setLanguage } = useApp();
   const pathname = usePathname();
