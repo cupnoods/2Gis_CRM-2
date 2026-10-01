@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { ArrowLeft, CalendarClock, Camera, Check, ChevronDown, CircleDot, ExternalLink, Globe, Heart, MapPin, MessageCircle, Phone, Plus, Send, Star, Users } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { Badge, Button, NoteList, PageHeader, PriorityIndicator, QuickAction, SectionCard, StatusBadge } from "@/components/ui";
+import { Badge, Button, NoteList, PageHeader, PriorityIndicator, QuickAction, SectionCard, StatusSelect } from "@/components/ui";
 import { useApp } from "@/components/app-shell";
 import type { Stage } from "@/lib/types";
 
@@ -62,7 +62,7 @@ export default function CompanyDetailPage() {
         description={`${company.category} · ${company.address}`}
         actions={
           <>
-            <StatusBadge status={company.status} />
+            <StatusSelect companyId={company.id} status={company.status} />
             <PriorityIndicator priority={company.priority} showLabel />
             <Button variant="secondary">
               <Heart size={16} className={company.favourite ? "fill-violet-500 text-violet-500" : ""} />
