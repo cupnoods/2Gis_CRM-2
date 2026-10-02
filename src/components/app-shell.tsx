@@ -1,470 +1,57 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Building2, ChevronDown, CircleHelp, ClipboardCheck, FileDown, Globe2, LayoutDashboard, LayoutGrid, ListTodo, Map, Menu, PanelLeft, Search, Settings, SquareKanban, X, LogOut, User as UserIcon } from "lucide-react";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { companies as initialCompanies, tasks as initialTasks } from "@/lib/mock-data";
-import type { Company, Language, Task, UserProfile } from "@/lib/types";
+import { Bell, Building2, ChevronDown, ClipboardCheck, FileDown, Globe2, LayoutDashboard, LayoutGrid, ListTodo, Map, Menu, Search, Settings, SquareKanban, X } from "lucide-react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { newCompany, type WorkspaceData, type WorkspaceSettings } from "@/lib/repository";
+import { useWorkspace } from './use-workspace';
+import { downloadFile } from '@/lib/csv';
+import { useAuth } from "./auth-provider";
+import { CreateDialog, type CreateRequest } from "./create-dialog";
+import type { Company, Language, Task } from "@/lib/types";
 import { copy } from "@/lib/i18n";
 import { cn, initials } from "@/lib/utils";
 
-type State = {
-  user: UserProfile | null;
-  setUser: (u: UserProfile | null) => void;
-  logout: () => void;
-  updateUserProfile: (patch: Partial<UserProfile>) => void;
-  companies: Company[];
-  tasks: Task[];
-  language: Language;
-  setLanguage: (l: Language) => void;
-  toggleFavourite: (id: string) => void;
-  updateCompany: (id: string, patch: Partial<Company>) => void;
-  addNote: (id: string, text: string) => void;
-  deleteNote: (companyId: string, noteId: string) => void;
-  addActivity: (id: string, text: string) => void;
-  toggleTask: (id: string) => void;
-  moveDeal: (companyId: string, dealId: string, stage: Company["deals"][number]["stage"]) => void;
-  addDeal: (companyId: string) => void;
-};
-
+type State = { flushSaves: () => Promise<boolean>; settings: WorkspaceSettings; saveSettings: (settings: WorkspaceSettings) => void; create: (request: CreateRequest) => void; importCompanies: (input: Array<Pick<Company, 'name' | 'category' | 'address'> & Partial<Company>>) => void; importBrowserBackup: (backup: WorkspaceData) => void; companies: Company[]; tasks: Task[]; language: Language; setLanguage: (l: Language) => void; toggleFavourite: (id: string) => void; updateCompany: (id: string, patch: Partial<Company>) => void; addNote: (id: string, text: string) => void; deleteNote: (companyId: string, noteId: string) => void; addActivity: (id: string, text: string) => void; toggleTask: (id: string) => void; moveDeal: (companyId: string, dealId: string, stage: Company["deals"][number]["stage"]) => void; addDeal: (companyId: string) => void; };
 const AppContext = createContext<State | null>(null);
-
-export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useApp must be used inside AppShell");
-  return ctx;
-}
+export function useApp() { const ctx = useContext(AppContext); if (!ctx) throw new Error("useApp must be used inside AppShell"); return ctx; }
 
 const nav = [
-  { href: "/catalogue", key: "catalogue", icon: LayoutGrid },
-  { href: "/map", key: "map", icon: Map },
-  { href: "/pipeline", key: "pipeline", icon: SquareKanban },
-  { href: "/tasks", key: "tasks", icon: ListTodo },
-  { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
-  { href: "/import-export", key: "exports", icon: FileDown },
-  { href: "/settings", key: "settings", icon: Settings },
+  { href: "/catalogue", key: "catalogue", icon: LayoutGrid }, { href: "/map", key: "map", icon: Map }, { href: "/pipeline", key: "pipeline", icon: SquareKanban }, { href: "/tasks", key: "tasks", icon: ListTodo }, { href: "/dashboard", key: "dashboard", icon: LayoutDashboard }, { href: "/import-export", key: "exports", icon: FileDown }, { href: "/settings", key: "settings", icon: Settings },
 ] as const;
 
-function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
-  return (
-    <span className={cn("inline-flex shrink-0 items-center justify-center rounded-full bg-indigo-100 font-semibold text-indigo-700", size === "md" ? "size-9 text-xs" : "size-7 text-[10px]")}>
-      {initials(name)}
-    </span>
-  );
-}
-
-function Sidebar({ open, setOpen }: { open: boolean; setOpen: (value: boolean) => void }) {
-  const pathname = usePathname();
-  const { user, language } = useApp();
-  const t = copy[language];
-
-  const displayName = user?.name || "User Account";
-  const displayEmail = user?.email || "user@oshbiz.kg";
-
-  return (
-    <>
-      <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-[252px] flex-col border-r border-[#e4e7ec] bg-white transition-transform lg:static lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
-        <div className="flex h-16 items-center gap-3 border-b border-[#f0f1f3] px-5">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">O</div>
-          <div>
-            <div className="font-semibold tracking-tight">OshBiz CRM</div>
-            <div className="text-[11px] text-[#98a2b3]">Osh, Kyrgyzstan</div>
-          </div>
-          <button className="ml-auto rounded-lg p-2 text-[#667085] hover:bg-[#f6f7f9] lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-3 py-5">
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#98a2b3]">Workspace</p>
-          {nav.map(({ href, key, icon: Icon }) => {
-            const active = pathname.startsWith(href);
-            return (
-              <Link key={href} href={href} onClick={() => setOpen(false)} className={cn("mb-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors", active ? "bg-indigo-50 font-semibold text-indigo-700" : "text-[#667085] hover:bg-[#f6f7f9] hover:text-[#344054]")}>
-                <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />{t[key]}
-              </Link>
-            );
-          })}
-        </div>
-        <div className="m-3 rounded-xl bg-[#f8f9fb] p-3">
-          <div className="flex items-center gap-2">
-            <Avatar name={displayName} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-semibold text-[#101828]">{displayName}</div>
-              <div className="truncate text-[11px] text-[#98a2b3]">{displayEmail}</div>
-            </div>
-          </div>
-        </div>
-      </aside>
-      {open && <button className="fixed inset-0 z-30 bg-[#101828]/20 lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />}
-    </>
-  );
-}
-
+function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) { return <span className={cn("inline-flex shrink-0 items-center justify-center rounded-full bg-indigo-100 font-semibold text-indigo-700", size === "md" ? "size-9 text-xs" : "size-7 text-[10px]")}>{initials(name)}</span>; }
+function Sidebar({ open, setOpen }: { open: boolean; setOpen: (value: boolean) => void }) { const pathname = usePathname(); const { language } = useApp(); const { user } = useAuth(); const t = copy[language]; return <><aside className={cn("fixed inset-y-0 left-0 z-40 flex w-[252px] flex-col border-r border-[#e4e7ec] bg-white transition-transform lg:static lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}><div className="flex h-16 items-center gap-3 border-b border-[#f0f1f3] px-5"><div className="flex size-9 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">O</div><div><div className="font-semibold tracking-tight">OshBiz CRM</div><div className="text-[11px] text-[#98a2b3]">Osh, Kyrgyzstan</div></div><button className="ml-auto rounded-lg p-2 text-[#667085] hover:bg-[#f6f7f9] lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation"><X size={18} /></button></div><div className="flex-1 overflow-y-auto px-3 py-5"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#98a2b3]">Workspace</p>{nav.map(({ href, key, icon: Icon }) => { const active = pathname.startsWith(href); return <Link key={href} href={href} onClick={() => setOpen(false)} className={cn("mb-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors", active ? "bg-indigo-50 font-semibold text-indigo-700" : "text-[#667085] hover:bg-[#f6f7f9] hover:text-[#344054]")}><Icon size={18} strokeWidth={active ? 2.2 : 1.8} />{t[key]}</Link>; })}</div><div className="m-3 rounded-xl bg-[#f8f9fb] p-3"><div className="flex items-center gap-2"><Avatar name={user?.name ?? "User"} /><div><div className="text-xs font-semibold">{user?.name}</div><div className="text-[11px] text-[#98a2b3]">{user?.email}</div></div><ChevronDown size={14} className="ml-auto text-[#98a2b3]" /></div></div></aside>{open && <button className="fixed inset-0 z-30 bg-[#101828]/20 lg:hidden" onClick={() => setOpen(false)} aria-label="Close navigation overlay" />}</>; }
 function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { user, logout, language, setLanguage } = useApp();
-  const pathname = usePathname();
-  const current = nav.find((item) => pathname.startsWith(item.href));
-  const t = copy[language];
-
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-
-  const displayName = user?.name || "User Account";
-  const displayEmail = user?.email || "user@oshbiz.kg";
-
-  return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-[#e4e7ec] bg-white/95 px-4 backdrop-blur sm:px-6">
-      <button onClick={onMenu} className="rounded-lg p-2 text-[#667085] hover:bg-[#f6f7f9] lg:hidden" aria-label="Open navigation">
-        <Menu size={20} />
-      </button>
-      <div className="hidden items-center gap-2 text-sm text-[#98a2b3] sm:flex">
-        <span>OshBiz CRM</span>
-        <span>/</span>
-        <span className="font-medium text-[#344054]">{current ? t[current.key] : "Workspace"}</span>
-      </div>
-      <div className="relative ml-auto hidden w-full max-w-[360px] md:block">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#98a2b3]" />
-        <input aria-label="Global search" placeholder={t.search} className="h-9 w-full rounded-lg border border-[#e4e7ec] bg-[#f9fafb] pl-9 pr-16 text-sm outline-none transition focus:border-indigo-400 focus:bg-white" />
-        <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[#e4e7ec] bg-white px-1.5 py-0.5 text-[10px] text-[#98a2b3]">⌘ K</kbd>
-      </div>
-
-      <button onClick={() => setLanguage(language === "en" ? "ru" : "en")} className="flex min-h-10 items-center gap-1 rounded-lg px-2 text-xs font-medium text-[#667085] hover:bg-[#f6f7f9]" title="Switch language">
-        <Globe2 size={16} />{language === "en" ? "EN" : "RU"}<ChevronDown size={13} />
-      </button>
-
-      <div className="relative">
-        <button onClick={() => setNotifOpen(!notifOpen)} className="relative rounded-lg p-2 text-[#667085] hover:bg-[#f6f7f9]" aria-label="Notifications">
-          <Bell size={18} />
-          <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-indigo-600" />
-        </button>
-        {notifOpen && (
-          <div className="absolute right-0 mt-2 w-72 rounded-xl border border-[#e4e7ec] bg-white p-4 shadow-lg z-50">
-            <div className="flex items-center justify-between border-b border-[#f2f4f7] pb-2 text-sm font-semibold text-[#101828]">
-              <span>Notifications</span>
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700">2 new</span>
-            </div>
-            <div className="mt-2 space-y-2 text-xs text-[#667085]">
-              <div className="p-2 hover:bg-[#f8f9fb] rounded-lg">
-                <span className="font-semibold text-[#344054]">Sulaiman Coffee</span> retention deal updated.
-              </div>
-              <div className="p-2 hover:bg-[#f8f9fb] rounded-lg">
-                Task <span className="font-semibold text-[#344054]">Call Aida</span> due today at 14:30.
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="relative">
-        <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-[#f6f7f9]" aria-label="Open user menu">
-          <Avatar name={displayName} />
-          <ChevronDown size={14} className="text-[#98a2b3]" />
-        </button>
-        {userMenuOpen && (
-          <div className="absolute right-0 mt-2 w-56 rounded-xl border border-[#e4e7ec] bg-white p-2 shadow-lg z-50 text-sm">
-            <div className="border-b border-[#f2f4f7] px-3 py-2">
-              <div className="font-semibold text-[#101828] truncate">{displayName}</div>
-              <div className="text-xs text-[#98a2b3] truncate">{displayEmail}</div>
-              {user?.role && <div className="mt-1 text-[10px] font-medium text-indigo-600 uppercase tracking-wider">{user.role}</div>}
-            </div>
-            <div className="py-1">
-              <Link href="/settings" onClick={() => setUserMenuOpen(false)} className="block rounded-lg px-3 py-2 text-[#344054] hover:bg-[#f8f9fb]">
-                Settings & Account
-              </Link>
-              <button onClick={() => { setUserMenuOpen(false); logout(); }} className="w-full text-left rounded-lg px-3 py-2 text-red-600 hover:bg-red-50 font-medium flex items-center gap-2">
-                <LogOut size={14} /> Log Out
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </header>
-  );
+ const { language, setLanguage, tasks, settings, flushSaves } = useApp(); const { user, signOut } = useAuth(); const router = useRouter();
+ const [query, setQuery] = useState(''); const [menu, setMenu] = useState(false); const [notifications, setNotifications] = useState(false);
+ const pathname = usePathname(); const current = nav.find(item => pathname.startsWith(item.href)); const t = copy[language]; const overdue = tasks.filter(task => !task.completed && task.bucket === 'Overdue');
+ return <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-[#e4e7ec] bg-white/95 px-4 backdrop-blur sm:px-6"><button onClick={onMenu} className="rounded-lg p-2 text-[#667085] lg:hidden" aria-label="Open navigation"><Menu size={20} /></button><div className="hidden text-sm text-[#667085] sm:block">{settings.name} / {current ? t[current.key] : 'Company'}</div><form className="relative ml-auto hidden w-full max-w-[360px] md:block" onSubmit={e => { e.preventDefault(); router.push(`/catalogue?q=${encodeURIComponent(query.trim())}`); }}><Search size={16} className="absolute left-3 top-3 text-[#98a2b3]" /><input aria-label="Global search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t.search} className="h-10 w-full rounded-lg border border-slate-200 pl-9 pr-16 text-sm" /><button type="submit" className="absolute right-2 top-2 text-xs text-indigo-600">Search</button></form><button onClick={() => setLanguage(language === 'en' ? 'ru' : 'en')} className="ml-auto flex min-h-10 items-center gap-1 rounded-lg px-2 text-xs md:ml-0" title="Switch language"><Globe2 size={16} />{language.toUpperCase()}</button><div className="relative"><button onClick={() => { setNotifications(!notifications); setMenu(false); }} aria-label="Notifications" aria-expanded={notifications} className="p-2"><Bell size={18} /></button>{notifications && <div className="absolute right-0 top-12 w-64 rounded-xl border bg-white p-4 shadow-lg"><p className="font-semibold">Notifications</p><p className="my-3 text-sm text-slate-500">{settings.notifications ? `${overdue.length} overdue tasks` : 'Notifications are turned off in Settings.'}</p><Link href="/tasks" onClick={() => setNotifications(false)} className="text-indigo-600">View tasks</Link></div>}</div><div className="relative"><button onClick={() => { setMenu(!menu); setNotifications(false); }} aria-label="Open user menu" aria-expanded={menu} className="flex items-center gap-2 p-2"><Avatar name={user?.name ?? 'User'} /><ChevronDown size={14} /></button>{menu && <div className="absolute right-0 top-12 w-48 rounded-xl border bg-white p-4 shadow-lg"><p className="mb-3 font-medium">{user?.name}</p><Link href="/settings" onClick={() => setMenu(false)} className="block py-2">Settings</Link><button onClick={async () => { if (await flushSaves()) await signOut(); }} className="py-2 text-red-600">Sign out</button></div>}</div></header>;
 }
-
-function MobileNav() {
-  const pathname = usePathname();
-  const { language } = useApp();
-  const t = copy[language];
-  const items = [
-    { href: "/catalogue", label: t.companies, icon: Building2 },
-    { href: "/map", label: t.map, icon: Map },
-    { href: "/pipeline", label: t.pipeline, icon: SquareKanban },
-    { href: "/tasks", label: t.tasks, icon: ClipboardCheck },
-    { href: "/settings", label: "More", icon: Menu }
-  ];
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 grid h-[68px] grid-cols-5 border-t border-[#e4e7ec] bg-white pb-safe lg:hidden">
-      {items.map(({ href, label, icon: Icon }) => (
-        <Link key={href} href={href} className={cn("flex flex-col items-center justify-center gap-1 text-[10px]", pathname.startsWith(href) ? "font-semibold text-indigo-600" : "text-[#667085]")}>
-          <Icon size={19} />
-          <span>{label}</span>
-        </Link>
-      ))}
-    </nav>
-  );
-}
+function MobileNav() { const pathname = usePathname(); const { language } = useApp(); const t = copy[language]; const items = [{ href: "/catalogue", label: t.companies, icon: Building2 }, { href: "/map", label: t.map, icon: Map }, { href: "/pipeline", label: t.pipeline, icon: SquareKanban }, { href: "/tasks", label: t.tasks, icon: ClipboardCheck }, { href: "/settings", label: "More", icon: Menu }]; return <nav className="fixed inset-x-0 bottom-0 z-20 grid h-[68px] grid-cols-5 border-t border-[#e4e7ec] bg-white pb-safe lg:hidden">{items.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={cn("flex flex-col items-center justify-center gap-1 text-[10px]", pathname.startsWith(href) ? "font-semibold text-indigo-600" : "text-[#667085]")}><Icon size={19} /><span>{label}</span></Link>)}</nav>; }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-  const [language, setLanguage] = useState<Language>("en");
-  const [isAuthChecked, setIsAuthChecked] = useState(false);
-
-  // Authenticated user state
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("oshbiz_user");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
-      }
-    }
-    return null;
-  });
-
-  // Auth Protection Guard
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("oshbiz_user");
-      let currentUser: UserProfile | null = null;
-      if (saved) {
-        try { currentUser = JSON.parse(saved); } catch (e) {}
-      }
-      setUser(currentUser);
-      setIsAuthChecked(true);
-
-      const isPublicRoute = pathname === "/login" || pathname === "/signup";
-      if (!currentUser && !isPublicRoute) {
-        router.push("/login");
-      } else if (currentUser && isPublicRoute) {
-        router.push("/catalogue");
-      }
-    }
-  }, [pathname, router]);
-
-  // Load Companies scoped to logged in user
-  const userStorageKeyCompanies = user ? `oshbiz_companies_${user.email || user.id}` : "oshbiz_companies";
-  const userStorageKeyTasks = user ? `oshbiz_tasks_${user.email || user.id}` : "oshbiz_tasks";
-
-  const [companies, setCompanies] = useState<Company[]>(() => {
-    if (typeof window !== "undefined") {
-      const userKey = user ? `oshbiz_companies_${user.email || user.id}` : "oshbiz_companies";
-      const saved = localStorage.getItem(userKey) || localStorage.getItem("oshbiz_companies");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
-      }
-    }
-    return initialCompanies;
-  });
-
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    if (typeof window !== "undefined") {
-      const userKey = user ? `oshbiz_tasks_${user.email || user.id}` : "oshbiz_tasks";
-      const saved = localStorage.getItem(userKey) || localStorage.getItem("oshbiz_tasks");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
-      }
-    }
-    return initialTasks;
-  });
-
-  // Reload user scoped data when user changes
-  useEffect(() => {
-    if (user && typeof window !== "undefined") {
-      const userCompanies = localStorage.getItem(userStorageKeyCompanies);
-      if (userCompanies) {
-        try { setCompanies(JSON.parse(userCompanies)); } catch (e) {}
-      } else {
-        const customizedCompanies = initialCompanies.map((c) => ({
-          ...c,
-          assignee: user.name,
-        }));
-        setCompanies(customizedCompanies);
-        localStorage.setItem(userStorageKeyCompanies, JSON.stringify(customizedCompanies));
-      }
-
-      const userTasks = localStorage.getItem(userStorageKeyTasks);
-      if (userTasks) {
-        try { setTasks(JSON.parse(userTasks)); } catch (e) {}
-      }
-    }
-  }, [user?.email, user?.id]);
-
-  // Sync to localStorage on update
-  useEffect(() => {
-    if (typeof window !== "undefined" && user) {
-      localStorage.setItem(userStorageKeyCompanies, JSON.stringify(companies));
-    }
-  }, [companies, userStorageKeyCompanies, user]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && user) {
-      localStorage.setItem(userStorageKeyTasks, JSON.stringify(tasks));
-    }
-  }, [tasks, userStorageKeyTasks, user]);
-
-  const logout = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("oshbiz_user");
-    }
-    setUser(null);
-    router.push("/login");
-  };
-
-  const updateUserProfile = (patch: Partial<UserProfile>) => {
-    if (!user) return;
-    const updated = { ...user, ...patch };
-    setUser(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("oshbiz_user", JSON.stringify(updated));
-    }
-  };
-
-  const authorName = user?.name || "Alex";
-
-  const value = useMemo<State>(
-    () => ({
-      user,
-      setUser,
-      logout,
-      updateUserProfile,
-      language,
-      setLanguage,
-      companies,
-      tasks,
-      toggleFavourite: (id) =>
-        setCompanies((list) =>
-          list.map((c) => (c.id === id ? { ...c, favourite: !c.favourite } : c))
-        ),
-      updateCompany: (id, patch) =>
-        setCompanies((list) =>
-          list.map((c) => (c.id === id ? { ...c, ...patch } : c))
-        ),
-      addNote: (id, text) =>
-        setCompanies((list) =>
-          list.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  notes: [
-                    {
-                      id: `note-${Date.now()}`,
-                      text,
-                      author: authorName,
-                      createdAt: "Just now",
-                    },
-                    ...c.notes,
-                  ],
-                }
-              : c
-          )
-        ),
-      deleteNote: (companyId, noteId) =>
-        setCompanies((list) =>
-          list.map((c) =>
-            c.id === companyId
-              ? { ...c, notes: c.notes.filter((note) => note.id !== noteId) }
-              : c
-          )
-        ),
-      addActivity: (id, text) =>
-        setCompanies((list) =>
-          list.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  activities: [
-                    {
-                      id: `activity-${Date.now()}`,
-                      type: "note",
-                      text,
-                      author: authorName,
-                      date: "Just now",
-                    },
-                    ...c.activities,
-                  ],
-                }
-              : c
-          )
-        ),
-      toggleTask: (id) =>
-        setTasks((list) =>
-          list.map((task) =>
-            task.id === id
-              ? {
-                  ...task,
-                  completed: !task.completed,
-                  bucket: task.completed ? "Today" : "Completed",
-                }
-              : task
-          )
-        ),
-      moveDeal: (companyId, dealId, stage) =>
-        setCompanies((list) =>
-          list.map((c) =>
-            c.id === companyId
-              ? {
-                  ...c,
-                  deals: c.deals.map((deal) =>
-                    deal.id === dealId ? { ...deal, stage } : deal
-                  ),
-                }
-              : c
-          )
-        ),
-      addDeal: (id) =>
-        setCompanies((list) =>
-          list.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  deals: [
-                    ...c.deals,
-                    {
-                      id: `deal-${Date.now()}`,
-                      title: "New opportunity",
-                      stage: "New",
-                      amount: 25000,
-                      currency: "KGS",
-                      assignee: authorName,
-                      nextAction: "Add next action",
-                      priority: "B",
-                    },
-                  ],
-                }
-              : c
-          )
-        ),
-    }),
-    [user, companies, tasks, language, authorName]
-  );
-
-  // If checking auth or user is not logged in on protected page, render simple container
-  if (!isAuthChecked && pathname !== "/login") {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#f6f7f9]">
-        <div className="text-sm font-medium text-[#667085]">Loading workspace...</div>
-      </div>
-    );
-  }
-
-  if (!user && pathname !== "/login") {
-    return null;
-  }
-
-  return (
-    <AppContext.Provider value={value}>
-      <div className="flex min-h-screen bg-[#f6f7f9]">
-        <Sidebar open={open} setOpen={setOpen} />
-        <div className="min-w-0 flex-1">
-          <Topbar onMenu={() => setOpen(true)} />
-          <main className="mx-auto min-h-[calc(100vh-64px)] max-w-[1680px] px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-8">
-            {children}
-          </main>
-        </div>
-        <MobileNav />
-      </div>
-    </AppContext.Provider>
-  );
+ const pathname = usePathname(); const { user } = useAuth();
+ return pathname === '/login' ? children : user ? <WorkspaceShell key={user.id} userId={user.id}>{children}</WorkspaceShell> : null;
+}
+function WorkspaceShell({ children, userId }: { children: React.ReactNode; userId: string }) {
+ const [open, setOpen] = useState(false); const [request, setRequest] = useState<CreateRequest | null>(null); const { user } = useAuth();
+ const { data, error, status: saveStatus, update, retry, flush } = useWorkspace(userId);
+ useEffect(() => { if (data) document.documentElement.lang = data.language; }, [data]);
+ if (!data) return <p role={error ? 'alert' : 'status'} className="p-8">{error || 'Loading workspace from Supabase…'}</p>;
+ const changeCompany = (id: string, fn: (company: Company) => Company) => update(current => ({ ...current, companies: current.companies.map(c => c.id === id ? fn(c) : c) }));
+ const value: State = {
+  ...data, flushSaves: flush, setLanguage: language => update(current => ({ ...current, language })), saveSettings: settings => update(current => ({ ...current, settings })), create: setRequest,
+  importCompanies: inputs => update(current => { const seen = new Set(current.companies.map(company => company.id)); const fresh = inputs.map(newCompany).filter(company => !seen.has(company.id) && seen.add(company.id)); return { ...current, companies: [...fresh, ...current.companies] }; }),
+  importBrowserBackup: backup => update(current => { const companyIds = new Set(current.companies.map(company => company.id)); const taskIds = new Set(current.tasks.map(task => task.id)); return { ...current, companies: [...current.companies, ...backup.companies.filter(company => !companyIds.has(company.id))], tasks: [...current.tasks, ...backup.tasks.filter(task => !taskIds.has(task.id))] }; }),
+  toggleFavourite: id => changeCompany(id, c => ({ ...c, favourite: !c.favourite })),
+  updateCompany: (id, patch) => changeCompany(id, c => ({ ...c, ...patch, id: c.id })),
+  addNote: (id, text) => { if (text.trim()) changeCompany(id, c => ({ ...c, notes: [{ id: crypto.randomUUID(), text: text.trim(), author: user?.name ?? 'User', createdAt: new Date().toISOString() }, ...c.notes] })); },
+  deleteNote: (id, noteId) => changeCompany(id, c => ({ ...c, notes: c.notes.filter(note => note.id !== noteId) })),
+  addActivity: (id, text) => { if (text.trim()) changeCompany(id, c => ({ ...c, activities: [{ id: crypto.randomUUID(), type: 'note', text: text.trim(), author: user?.name ?? 'User', date: new Date().toISOString() }, ...c.activities] })); },
+  toggleTask: id => update(current => ({ ...current, tasks: current.tasks.map(task => task.id === id ? { ...task, completed: !task.completed, bucket: task.bucket === 'Completed' ? 'Today' : task.bucket } : task) })),
+  moveDeal: (id, dealId, stage) => changeCompany(id, c => ({ ...c, deals: c.deals.map(deal => deal.id === dealId ? { ...deal, stage } : deal) })),
+  addDeal: companyId => setRequest({ kind: 'deal', companyId }),
+ };
+ return <AppContext.Provider value={value}><div className="flex min-h-screen bg-[#f6f7f9]"><Sidebar open={open} setOpen={setOpen} /><div className="min-w-0 flex-1"><Topbar onMenu={() => setOpen(true)} /><div role="status" className="bg-indigo-50 px-4 py-2 text-xs text-indigo-700">{saveStatus || 'Connected to Supabase'}</div>{error && <div className="bg-red-50 p-4 text-red-700"><p role="alert">{error}</p><div className="mt-2 flex gap-4"><button onClick={retry} className="underline">Retry save</button><button onClick={() => downloadFile("unsaved-workspace.json", JSON.stringify(data, null, 2), "application/json")} className="underline">Download unsaved data</button></div></div>}<main className="mx-auto min-h-[calc(100vh-64px)] max-w-[1680px] px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-8">{children}</main></div><MobileNav /></div>{request && <CreateDialog request={request} companies={data.companies} currency={data.settings.currency} onClose={() => setRequest(null)} onCompany={input => value.importCompanies([input])} onTask={input => update(current => ({ ...current, tasks: [...current.tasks, { ...input, id: crypto.randomUUID(), completed: false }] }))} onDeal={(id, input) => changeCompany(id, c => ({ ...c, deals: [...c.deals, { ...input, id: crypto.randomUUID() }] }))} />}</AppContext.Provider>;
 }
