@@ -1,87 +1,44 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { load } from "@2gis/mapgl";
 import type { Company } from "@/lib/types";
 
 interface MapProps {
   companies: Company[];
-  onSelectCompany?: (id: string) => void;
+  onSelectCompany: (id: string) => void;
 }
 
 export default function GisMapContainer({ companies, onSelectCompany }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const key = process.env.NEXT_PUBLIC_2GIS_API_KEY;
+    if (!container || !key) return;
+    let cancelled = false;
+    let destroyMap = () => {};
 
-    let map: any = null;
-    let markers: any[] = [];
-
-    const key = process.env.NEXT_PUBLIC_2GIS_API_KEY || "ruabzy8282";
-
-    load().then((mapgl) => {
-      if (!containerRef.current) return;
-
-      // Initialize 2GIS Map centered on Osh, Kyrgyzstan (40.514, 72.816)
-      map = new mapgl.Map(containerRef.current, {
-        center: [72.8161, 40.514],
-        zoom: 13,
-        key: key,
-      });
-
-      mapInstanceRef.current = map;
-
-      // Real coordinates map for Osh business districts
-      const realCoords: Record<string, [number, number]> = {
-        "company-1": [72.7958, 40.5135], // Sulaiman Coffee (Central Osh)
-        "company-2": [72.8055, 40.5210], // Silk Road Kitchen
-        "company-3": [72.7980, 40.5180], // Archa Bakery
-        "company-4": [72.8120, 40.5090], // Dostuk Restaurant
-        "company-5": [72.7930, 40.5150], // Ala-Too Bistro
-        "company-6": [72.7995, 40.5260], // Osh Plaza Hotel
-        "company-7": [72.8020, 40.5220], // Navat Boutique Hotel
-        "company-8": [72.8100, 40.5170], // Berekе Market
-        "company-9": [72.8040, 40.5140], // Dordoi Mini Market
-        "company-10": [72.8080, 40.5200], // Neman Pharmacy
-        "company-11": [72.8010, 40.5230], // Aibolit Pharmacy
-        "company-12": [72.7970, 40.5270], // Pulse Fitness Osh
-      };
-
-      companies.forEach((company, index) => {
-        const coords = realCoords[company.id] || [
-          72.7950 + ((index * 3) % 15) * 0.003,
-          40.5100 + ((index * 5) % 12) * 0.003,
-        ];
-
+    load().then(mapgl => {
+      if (cancelled) return;
+      const map = new mapgl.Map(container, { center: [72.8161, 40.514], zoom: 13, key });
+      const markers = companies.filter(company => Number.isFinite(company.longitude) && Number.isFinite(company.latitude)).map((company) => {
         const marker = new mapgl.Marker(map, {
-          coordinates: coords,
+          coordinates: [company.longitude!, company.latitude!],
         });
-
-        marker.on("click", () => {
-          if (onSelectCompany) {
-            onSelectCompany(company.id);
-          }
-        });
-
-        markers.push(marker);
+        marker.on("click", () => onSelectCompany(company.id));
+        return marker;
       });
-    }).catch((err) => {
-      console.error("Failed to load 2GIS MapGL:", err);
-    });
+      destroyMap = () => { markers.forEach(marker => marker.destroy()); map.destroy(); };
+      setError("");
+    }).catch(() => { if (!cancelled) setError("The map could not load. Check the 2GIS key or use the company list."); });
 
-    return () => {
-      markers.forEach((m) => m.destroy && m.destroy());
-      if (map) {
-        map.destroy();
-      }
-    };
+    return () => { cancelled = true; destroyMap(); };
   }, [companies, onSelectCompany]);
 
-  return (
-    <div className="relative h-full w-full min-h-[600px] overflow-hidden rounded-xl border border-[#e4e7ec]">
-      <div ref={containerRef} className="h-full w-full min-h-[600px]" />
-    </div>
-  );
+  return <div className="relative h-full min-h-[600px] overflow-hidden rounded-xl border border-slate-200">
+    <div ref={containerRef} className="h-full min-h-[600px] w-full" />
+    {error && <div role="alert" className="absolute inset-x-4 top-4 rounded-lg bg-white p-4 text-red-700 shadow">{error}</div>}
+  </div>;
 }

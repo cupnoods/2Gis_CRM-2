@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarClock, Camera, Check, ChevronDown, CircleDot, Extern
 import { useParams, useRouter } from "next/navigation";
 import { Badge, Button, NoteList, PageHeader, PriorityIndicator, QuickAction, SectionCard, StatusSelect } from "@/components/ui";
 import { useApp } from "@/components/app-shell";
+import { webUrl } from "@/lib/csv";
 import type { Stage } from "@/lib/types";
 
 const tabs = ["Overview", "Pipeline", "Notes", "Activity"] as const;
@@ -20,12 +21,14 @@ function Info({ label, value }: { label: string; value: string }) {
 export default function CompanyDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { companies, updateCompany, addNote, addActivity, addDeal } = useApp();
-  const company = companies.find((item) => item.id === params.id) ?? companies[0];
+  const { companies, updateCompany, addNote, addActivity, addDeal, toggleFavourite, tasks, create } = useApp();
+  const company = companies.find((item) => item.id === params.id);
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [note, setNote] = useState("");
   const [activity, setActivity] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+
+  if (!company) return <div><PageHeader title="Company not found" description="This company does not exist in the current workspace." /><Button onClick={() => router.push("/catalogue")}>Back to catalogue</Button></div>;
 
   const addTheNote = () => {
     if (!note.trim()) return;
@@ -42,7 +45,7 @@ export default function CompanyDetailPage() {
   const quickStats = [
     { label: "Rating", value: `${company.rating.toFixed(1)}/5`, icon: Star },
     { label: "Deals", value: `${company.deals.length}`, icon: Users },
-    { label: "Tasks", value: "3", icon: Check },
+    { label: "Tasks", value: String(tasks.filter(task => task.companyId === company.id && !task.completed).length), icon: Check },
     { label: "Verified", value: company.verified ? "Yes" : "No", icon: CircleDot },
   ];
 
@@ -64,7 +67,7 @@ export default function CompanyDetailPage() {
           <>
             <StatusSelect companyId={company.id} status={company.status} />
             <PriorityIndicator priority={company.priority} showLabel />
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => toggleFavourite(company.id)} aria-pressed={company.favourite}>
               <Heart size={16} className={company.favourite ? "fill-violet-500 text-violet-500" : ""} />
               Favourite
             </Button>
@@ -74,11 +77,11 @@ export default function CompanyDetailPage() {
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <QuickAction href={company.phone ? `tel:${company.phone}` : undefined} icon={Phone} label="Call" />
-        <QuickAction href={company.whatsapp ? `https://${company.whatsapp}` : undefined} icon={MessageCircle} label="WhatsApp" />
-        <QuickAction href={company.instagram ? "https://instagram.com" : undefined} icon={Camera} label="Instagram" />
-        <QuickAction href={company.website ? "https://example.com" : undefined} icon={Globe} label="Website" />
-        <QuickAction icon={MapPin} label="Directions" />
-        <QuickAction icon={ExternalLink} label="Open in 2GIS" />
+        <QuickAction href={webUrl(company.whatsapp)} icon={MessageCircle} label="WhatsApp" />
+        <QuickAction href={company.instagram ? `https://www.instagram.com/${encodeURIComponent(company.instagram.replace(/^@/, ""))}/` : undefined} icon={Camera} label="Instagram" />
+        <QuickAction href={webUrl(company.website)} icon={Globe} label="Website" />
+        <QuickAction href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(company.address)}`} icon={MapPin} label="Directions" />
+        <QuickAction href={`https://2gis.kg/osh/search/${encodeURIComponent(company.name + " " + company.address)}`} icon={ExternalLink} label="Open in 2GIS" />
       </div>
 
       <div className="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-[#e4e7ec] bg-[#f9fafb] p-1">
@@ -110,7 +113,7 @@ export default function CompanyDetailPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-        <SectionCard title="Overview" className="overflow-hidden">
+        <SectionCard title="Overview" className={tab === "Overview" ? "overflow-hidden" : "hidden"}>
           <div className="p-5">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <Info label="Primary contact" value={company.assignee} />
@@ -147,7 +150,7 @@ export default function CompanyDetailPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Pipeline" className="h-fit">
+        <SectionCard title="Pipeline" className={tab === "Overview" || tab === "Pipeline" ? "h-fit" : "hidden"}>
           <div className="p-5 space-y-3">
             {company.deals.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[#d0d5dd] p-4 text-sm text-[#98a2b3]">
@@ -218,7 +221,7 @@ export default function CompanyDetailPage() {
                 placeholder="Add a note"
                 className="h-10 flex-1 rounded-lg border border-[#d0d5dd] bg-white px-3 text-sm text-[#344054] outline-none focus:border-indigo-500"
               />
-              <Button variant="primary" onClick={addTheNote}>
+              <Button variant="primary" disabled={!note.trim()} onClick={addTheNote}>
                 <Send size={14} />
                 Save
               </Button>
@@ -238,7 +241,7 @@ export default function CompanyDetailPage() {
                 placeholder="Log activity"
                 className="h-10 flex-1 rounded-lg border border-[#d0d5dd] bg-white px-3 text-sm text-[#344054] outline-none focus:border-indigo-500"
               />
-              <Button variant="primary" onClick={addTheActivity}>
+              <Button variant="primary" disabled={!activity.trim()} onClick={addTheActivity}>
                 <Plus size={14} />
                 Add
               </Button>
@@ -306,18 +309,19 @@ export default function CompanyDetailPage() {
               <Badge key={item} tone="neutral">{item}</Badge>
             ))}
           </div>
+          <form className="mt-4 flex gap-2" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const tag = String(new FormData(form).get('tag') ?? '').trim(); if (tag) { updateCompany(company.id, { tags: Array.from(new Set([...company.tags, tag])) }); form.reset(); } }}><input aria-label="New tag" name="tag" required maxLength={40} placeholder="New tag" className="rounded-lg border px-3" /><Button type="submit" size="sm">Add tag</Button></form>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="sm" disabled={!company.phone} onClick={() => { window.location.href = `tel:${company.phone}`; }}>
               <Phone size={14} />
               Call
             </Button>
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="sm" disabled={!webUrl(company.whatsapp)} onClick={() => window.open(webUrl(company.whatsapp), "_blank", "noopener,noreferrer")}>
               <MessageCircle size={14} />
               WhatsApp
             </Button>
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="sm" onClick={() => create({ kind: "task", companyId: company.id })}>
               <Plus size={14} />
-              Add tag
+              New task
             </Button>
           </div>
         </div>
