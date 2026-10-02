@@ -1,0 +1,24 @@
+"use client";
+import { useEffect, useRef, useState } from 'react';
+import type { Company, Deal, Stage, Task } from '@/lib/types';
+import { stages } from '@/lib/mock-data';
+export type CreateRequest = { kind: 'company' | 'task' | 'deal'; companyId?: string; stage?: Stage };
+export function CreateDialog({ request, companies, currency, onClose, onCompany, onTask, onDeal }: {
+  request: CreateRequest; companies: Company[]; currency: Deal['currency']; onClose: () => void;
+  onCompany: (input: Pick<Company, 'name' | 'category' | 'address'> & Partial<Company>) => void;
+  onTask: (input: Omit<Task, 'id' | 'completed'>) => void;
+  onDeal: (companyId: string, input: Omit<Deal, 'id'>) => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null); const [error, setError] = useState('');
+  useEffect(() => { const dialog = ref.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  const kind = request.kind;
+  return <dialog ref={ref} onCancel={onClose} aria-labelledby="create-title" className="m-auto w-[calc(100%-32px)] max-w-lg rounded-xl p-6 backdrop:bg-slate-900/30"><form className="space-y-4" onSubmit={e => {
+    e.preventDefault(); const data = new FormData(e.currentTarget); const get = (key: string) => String(data.get(key) ?? '').trim();
+    if (!get('title')) { setError('Please enter a name or title.'); return; }
+    if (kind === 'company') { if (!get('category') || !get('address')) { setError('Category and address are required.'); return; } onCompany({ name: get('title'), category: get('category'), address: get('address'), phone: get('phone') || undefined }); }
+    else { const company = companies.find(c => c.id === get('company')); if (!company) { setError('Choose a company first.'); return; }
+      if (kind === 'task') { if (!get('due')) { setError('Enter a due date or time.'); return; } onTask({ title: get('title'), companyId: company.id, companyName: company.name, due: get('due'), bucket: get('bucket') as Task['bucket'], assignee: get('assignee') || company.assignee }); }
+      else { const amount = Number(get('amount')); if (!Number.isFinite(amount) || amount < 0) { setError('Enter a valid non-negative amount.'); return; } onDeal(company.id, { title: get('title'), amount, currency: get('currency') as Deal['currency'], stage: get('stage') as Stage, assignee: get('assignee') || company.assignee, nextAction: get('nextAction') || 'No action set', priority: company.priority }); }
+    } onClose();
+  }}><div className="flex items-center justify-between"><h2 id="create-title" className="text-xl font-semibold">{kind === 'company' ? 'Add company' : kind === 'task' ? 'New task' : 'New deal'}</h2><button type="button" onClick={onClose} aria-label="Close dialog" className="p-2">✕</button></div><label className="block">{kind === 'company' ? 'Company name' : 'Title'}<input autoFocus name="title" required maxLength={160} className="form-input" /></label>{kind === 'company' ? <><label className="block">Category<input name="category" required className="form-input" /></label><label className="block">Address<input name="address" required className="form-input" /></label><label className="block">Phone<input name="phone" type="tel" className="form-input" /></label></> : <><label className="block">Company<select name="company" defaultValue={request.companyId ?? companies[0]?.id} required className="form-input">{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className="block">Assignee<input name="assignee" placeholder="Company assignee" className="form-input" /></label>{kind === 'task' ? <><label className="block">Due<input name="due" required placeholder="Tomorrow · 09:00" className="form-input" /></label><label className="block">Group<select name="bucket" defaultValue="Today" className="form-input"><option>Overdue</option><option>Today</option><option>This week</option></select></label></> : <><div className="grid grid-cols-2 gap-3"><label>Amount<input name="amount" type="number" min="0" step="0.01" required defaultValue={0} className="form-input" /></label><label>Currency<select name="currency" defaultValue={currency} className="form-input"><option>KGS</option><option>USD</option></select></label></div><label className="block">Stage<select name="stage" defaultValue={request.stage ?? 'New'} className="form-input">{stages.map(stage => <option key={stage}>{stage}</option>)}</select></label><label className="block">Next action<input name="nextAction" className="form-input" /></label></>}</>}{error && <p role="alert" className="text-red-600">{error}</p>}<div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border px-4 py-2">Cancel</button><button type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-white">Create {kind}</button></div></form></dialog>;
+}
