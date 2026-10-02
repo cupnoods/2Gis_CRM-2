@@ -249,7 +249,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [companies, setCompanies] = useState<Company[]>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("oshbiz_companies");
+      const userKey = user ? `oshbiz_companies_${user.email || user.id}` : "oshbiz_companies";
+      const saved = localStorage.getItem(userKey) || localStorage.getItem("oshbiz_companies");
       if (saved) {
         try { return JSON.parse(saved); } catch (e) {}
       }
@@ -259,7 +260,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [tasks, setTasks] = useState<Task[]>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("oshbiz_tasks");
+      const userKey = user ? `oshbiz_tasks_${user.email || user.id}` : "oshbiz_tasks";
+      const saved = localStorage.getItem(userKey) || localStorage.getItem("oshbiz_tasks");
       if (saved) {
         try { return JSON.parse(saved); } catch (e) {}
       }
@@ -274,12 +276,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (userCompanies) {
         try { setCompanies(JSON.parse(userCompanies)); } catch (e) {}
       } else {
-        // Attach assignee to new user
         const customizedCompanies = initialCompanies.map((c) => ({
           ...c,
           assignee: user.name,
         }));
         setCompanies(customizedCompanies);
+        localStorage.setItem(userStorageKeyCompanies, JSON.stringify(customizedCompanies));
       }
 
       const userTasks = localStorage.getItem(userStorageKeyTasks);
